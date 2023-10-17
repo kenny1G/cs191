@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Organization Research</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <header>
+        <h1>Research Project: Automatic Organization of Camera Roll Photos</h1>
+    </header>
+
+    <section>
+        <input type="file" id="photo-upload" multiple accept="image/*">
+    </section>
+
+    <section id="gallery" class="photo-gallery">
+        <!-- Photos will be displayed here -->
+    </section>
+
+    <script>
+        document.getElementById('photo-upload').onchange = function (event) {
+            let gallery = document.getElementById('gallery');
+            gallery.innerHTML = ''; // Clear current photos
+            for (let file of event.target.files) {
+                let reader = new FileReader();
+                reader.onload = function (e) {
+                    let img = document.createElement('img');
+                    img.src = e.target.result;
+                    gallery.appendChild(img);
+                };
+                reader.readAsDataURL(file);
+            }
+        };
+    </script>
+
+</body>
+</html>
