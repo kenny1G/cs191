@@ -1,0 +1,14 @@
+<!-- templates/images.html -->
+
+<section>
+    <div class="grid grid-cols-4 gap-4"> <!-- Grid wrapper-->
+        {% for image in images %}
+        <a href="{{ url_for('static', filename='photos/users_1_40_thumbnails/' + image[0]) }}"
+            data-pswp-width="{{ image[1] }}" data-pswp-height="{{ image[2] }}"
+            target="_blank">
+            <img class="object-cover h-48 w-full" src="{{ url_for('static', filename='photos/users_1_40_thumbnails/' + image[0]) }}"
+                alt />
+        </a>
+        {% endfor %}
+    </div>
+</section>
