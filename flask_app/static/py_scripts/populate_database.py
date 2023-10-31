@@ -18,7 +18,7 @@ class DatabaseEntry:
         try:
             with Image.open(file_path) as img:
                 width, height = img.size
-                self.primary_key = hash(file_path)
+                self.primary_key = os.path.basename(file_path)
                 self.file_path = os.path.abspath(file_path)
                 self.file_name = os.path.basename(file_path)
                 self.file_size = os.path.getsize(file_path)
@@ -40,7 +40,7 @@ def create_database(conn):
     c.execute(
         """
               CREATE TABLE IF NOT EXISTS photos (
-              PhotoID INTEGER PRIMARY KEY NOT NULL,
+              PhotoID TEXT PRIMARY KEY NOT NULL,
               FilePath TEXT NOT NULL,
               FileName TEXT NOT NULL,
               FileSize INTEGER NOT NULL,
