@@ -104,15 +104,15 @@ def main():
                 # Only process image files
                 sRet = file_path.lower()
                 if sRet.endswith(".jpg") or sRet.endswith(".heic") or sRet.endswith(".png"):
-                    db_entry = DatabaseEntry(file_path)
-                    update_database(conn, db_entry)
-                    # try:
-                    # except ValueError as ve:
-                    #     failed_files.append((file_path, str(ve)))
-                    # except Exception as e:
-                    #     print(e)
-                    #     failed_files.append((file_path, str(e)))
-                # Update the progress bar
+                    try:
+                        db_entry = DatabaseEntry(file_path)
+                        update_database(conn, db_entry)
+                    except ValueError as ve:
+                        failed_files.append((file_path, str(ve)))
+                    except Exception as e:
+                        print(e)
+                        failed_files.append((file_path, str(e)))
+                # update the progress bar
                 progress_bar.update()
 
         # Close the progress bar

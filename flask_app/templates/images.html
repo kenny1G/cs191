@@ -1,12 +1,13 @@
 <!-- templates/images.html -->
 
 <section>
+    <!-- grid.py feeds (file_name, _width, height)-->
     <div class="grid grid-cols-4 gap-4"> <!-- Grid wrapper-->
         {% for image in images %}
-        <a href="{{ url_for('static', filename='photos/users_1_40_thumbnails/' + image[0]) }}"
+        <a href="{{ url_for('static', filename='converted_photos/' + image[0]) }}"
             data-pswp-width="{{ image[1] }}" data-pswp-height="{{ image[2] }}"
             target="_blank">
-            <img class="object-cover h-48 w-full" src="{{ url_for('static', filename='photos/users_1_40_thumbnails/' + image[0]) }}"
+            <img class="object-cover h-48 w-full" src="{{ url_for('static', filename='converted_photos/' + image[0]) }}"
                 alt />
         </a>
         {% endfor %}

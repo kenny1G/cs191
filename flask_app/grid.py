@@ -2,28 +2,50 @@ import sys
 import functools
 
 from flask import (
-    Blueprint, flash, g, redirect, render_template, request, session, url_for
+    Blueprint,
+    flash,
+    g,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+    current_app
 )
-from . import todo as _todo
 
-bp = Blueprint('grid', __name__)
+bp = Blueprint("grid", __name__)
+database_path = current_app.config['DATABASE']
+print(database_path)
 
-@bp.route('/', methods=('GET', 'POST'))
+
+@bp.route("/", methods=("GET", "POST"))
 def index():
-    return render_template('index.html')
+    return render_template("index.html")
+
+
+import sqlite3
+
 
 @bp.route("/images", methods=["GET"])
 def images():
+    # Connect to the database
+    conn = sqlite3.connect(database_path)
+    c = conn.cursor()
+
+    # Execute the query to fetch all photos
+    c.execute("SELECT * FROM photos")
+    rows = c.fetchall()
+
+    # Close the connection
+    conn.close()
+
+    # Prepare the images data according to the new database definition
     images = []
-    import os
-    from PIL import Image
-    print(os.getcwd(), file=sys.stderr)
-    directory = 'flask_app/static/photos/users_1_40_thumbnails'
-    for root, dirs, files in os.walk(directory):
-        for filename in files:
-            if filename.endswith(".jpg") or filename.endswith(".png"):
-                with Image.open(os.path.join(root, filename)) as img:
-                    width, height = img.size
-                    images.append((os.path.join(root, filename).replace(directory + '/', ''), width, height))
-    print(images[0], len(images))
-    return render_template("images.html", images = images)
+    for row in rows:
+        file_name = row[2]
+        image_width = row[5]
+        image_height = row[6]
+        # images.html expects (name, width, height)
+        images.append((file_name, image_width, image_height))
+
+    return render_template("images.html", images=images)
