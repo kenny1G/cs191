@@ -26,4 +26,6 @@ htmlcov/
 
 
 # Kenny
-static/
+photos.db
+photos/
+converted_photos/

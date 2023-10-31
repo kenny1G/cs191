@@ -1,3 +1,5 @@
 .venv/*
 .DS_Store
 misc/
+data_cleaned/
+photos.db
