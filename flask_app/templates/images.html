@@ -1,7 +1,9 @@
 <!-- templates/images.html -->
 
 <section>
-    <!-- grid.py feeds (file_name, _width, height)-->
+    <!-- grid.py feeds (day, [(file_name, _width, height), ...])-->
+    {% for day, images in images %}
+    <h2>{{ day }}</h2>
     <div class="grid grid-cols-4 gap-4"> <!-- Grid wrapper-->
         {% for image in images %}
         <a href="{{ url_for('static', filename='converted_photos/' + image[0]) }}"
@@ -12,4 +14,5 @@
         </a>
         {% endfor %}
     </div>
+    {% endfor %}
 </section>
