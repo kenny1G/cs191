@@ -26,8 +26,12 @@ def process_image(file_path, output_directory, failed_files = []):
                 new_height = int((new_width / width) * height)
                 img_resized = img.resize((new_width, new_height))
 
-                # Save the processed image
-                img_resized.save(new_file_path, "JPEG")
+                # Save the processed image with EXIF data
+                exif = img.info['exif']
+                img_resized.save(new_file_path, "JPEG", exif=exif)
+        except KeyError:
+            failed_files.append((file_path, "no exif"))
+            return None
         except OSError:
             failed_files.append(file_path)
             return None
