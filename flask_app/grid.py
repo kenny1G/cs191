@@ -32,15 +32,14 @@ def images():
     conn = sqlite3.connect(database_path)
     c = conn.cursor()
 
-    # Execute the query to fetch all photos where DateTaken is not null and order them by taken_date
-    c.execute("SELECT * FROM photos WHERE DateTaken IS NOT NULL ORDER BY DateTaken")
+    # Execute the query to fetch all photos taken in 2023 where DateTaken is not null and order them by taken_date
+    c.execute("SELECT * FROM photos WHERE DateTaken IS NOT NULL AND SUBSTR(DateTaken, 1, 4) = '2023' ORDER BY DateTaken DESC")
     rows = c.fetchall()
 
     # Close the connection
     conn.close()
 
     # Prepare the images data according to the new database definition
-    print(rows[32])
     images = []
     current_day = None
     for row in rows:
