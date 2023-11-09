@@ -33,11 +33,8 @@ def images():
     c = conn.cursor()
 
     # Execute the query to fetch all photos taken in 2023 where DateTaken is not null and order them by taken_date
-    c.execute("SELECT * FROM photos WHERE DateTaken IS NOT NULL AND SUBSTR(DateTaken, 1, 4) = '2023' ORDER BY DateTaken DESC")
+    c.execute("SELECT * FROM copied WHERE DateTaken IS NOT NULL AND SUBSTR(DateTaken, 1, 4) = '2023' ORDER BY DateTaken")
     rows = c.fetchall()
-
-    # Close the connection
-    conn.close()
 
     # Prepare the images data according to the new database definition
     images = []
@@ -55,4 +52,20 @@ def images():
             images.append((current_day, []))
         images[-1][1].append((file_name, image_width, image_height))
 
-    return render_template("images.html", images=images)
+    # Fetch the tags associated with each day
+    c.execute("SELECT dates_have_tags.date, PETA_tags.tag FROM dates_have_tags JOIN PETA_tags ON dates_have_tags.tag_id = PETA_tags.id ORDER BY dates_have_tags.date")
+    tag_rows = c.fetchall()
+
+    # Prepare the tags data
+    tags = {}
+    for row in tag_rows:
+        date = row[0]
+        tag = row[1]
+        if date not in tags:
+            tags[date] = []
+        tags[date].append(tag)
+
+    # Close the connection
+    conn.close()
+
+    return render_template("images.html", images=images, tags=tags)
