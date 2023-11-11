@@ -16,66 +16,52 @@ ROOT_DIRECTORY = os.path.dirname(os.path.abspath(os.curdir))
 FLASK_PATH = "http://127.0.0.1:5000/static/"
 INSTANCE_DIR = os.path.join(ROOT_DIRECTORY, "instance")
 DB_PATH = os.path.join(INSTANCE_DIR, "photos.db")
-print("ROOT_DIRECTORY:", ROOT_DIRECTORY)
-print("INSTANCE_DIR:", INSTANCE_DIR)
-print("DB_PATH:", DB_PATH)
 
-load_dotenv()
-api_key = os.getenv("PINECONE_API_KEY")
-if not api_key:
-    print("Warning: No Pinecone API key found.")
+class ImageSearchApp:
+    def __init__(self):
+        self.load_env_vars()
+        self.init_pinecone()
+        self.model = SentenceTransformer("clip-ViT-B-32")
+        self.conn = sqlite3.connect(DB_PATH)
+        self.selection = None
 
-pinecone.init(api_key=os.getenv(api_key), environment="us-west1-gcp-free")
-# Initialize Pinecone
-INDEX_NAME = "cs191"
-NAMESPACE = "image_embeddings"
-index = pinecone.Index(INDEX_NAME)
+    def load_env_vars(self):
+        load_dotenv()
+        self.api_key = os.getenv("PINECONE_API_KEY")
+        if not self.api_key:
+            print("Warning: No Pinecone API key found.")
 
+    def init_pinecone(self):
+        pinecone.init(api_key=self.api_key, environment="us-west1-gcp-free")
+        self.index = pinecone.Index("cs191")
 
-def get_query_vector(text):
-    model = SentenceTransformer("clip-ViT-B-32")
-    query_emb = model.encode([text], show_progress_bar=False)
-    return np.ndarray.tolist(query_emb)
+    def get_query_vector(self, text):
+        query_emb = self.model.encode([text], show_progress_bar=False)
+        return np.ndarray.tolist(query_emb)
 
+    def search_images(self, query_vector, top_k=10):
+        query_response = self.index.query(
+            namespace="image_embeddings",
+            vector=query_vector,
+            top_k=top_k,
+            include_values=False,
+            include_metadata=True,
+        )
+        return query_response.get("matches", [])
 
-def search_images(query_vector, top_k=10):
-    query_response = index.query(
-        namespace=NAMESPACE,
-        vector=query_vector,
-        top_k=top_k,
-        include_values=False,
-        include_metadata=True,
-    )
+    def aggregate_results(self, matches):
+        date_scores = {}
+        for match in matches:
+            date = match.metadata["date"]
+            score = match.score
+            date_scores[date] = date_scores.get(date, 0) + score
+        date_counts = sorted(date_scores.items(), key=lambda x: x[1], reverse=True)
+        return date_counts
 
-    return query_response.get("matches", [])
-
-
-def aggregate_results(matches):
-    # Create a dictionary to store the dates and their corresponding scores
-    date_scores = {}
-    for match in matches:
-        date = match.metadata["date"]
-        score = match.score
-        if date in date_scores:
-            # If the date already exists in the dictionary, add the score to the existing score
-            date_scores[date] += score
-        else:
-            # If the date does not exist in the dictionary, add it and initialize the score
-            date_scores[date] = score
-    # Sort the dictionary by score in descending order and convert it to a list of tuples
-    date_counts = sorted(date_scores.items(), key=lambda x: x[1], reverse=True)
-    return date_counts
-
-
-def display_results(date_counts):
-    # Connect to the database
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-
+    def display_results(self, date_counts):
+        cursor = self.conn.cursor()
         st.write("Dates with the highest scores:")
-        html_string = ""
         for date, score in date_counts:
-            # Use the GET_PHOTO_BY_DATE query to get the photos associated with the date
             cursor.execute(f"{GET_PHOTO_BY_DATE}", (date,))
             photos = cursor.fetchall()
             img_string = ""
@@ -88,29 +74,36 @@ def display_results(date_counts):
                 """
             html_string = f"""
             <main >
-            <h2 style='color: white;'>{date} with {score} score</h2>
             <div style='display: flex; justify-content: center; overflow-x: auto;'>
             {img_string}
             </div>
             </main>
             """
+            if st.button(date):
+                print(self.selection)
+                self.selection = date
+                return date
             components.html(html_string, height=400)
-        # Display the photos in the html component
-        # Close the database connection
 
+    def search_and_display(self, query):
+        query_vector = self.get_query_vector(query)
+        matches = self.search_images(query_vector)
+        date_counts = self.aggregate_results(matches)
+        selection = self.display_results(date_counts)
+        return selection
 
-def search_and_display(query):
-    query_vector = get_query_vector(query)
-    matches = search_images(query_vector)
-    date_counts = aggregate_results(matches)
-    display_results(date_counts)
-
-
+if 'app' not in st.session_state:
+    st.session_state.app = ImageSearchApp()
+app = st.session_state.app
 st.title("Image Search")
 query = st.text_input("What Event Do You seek?")
 if st.button("Search"):
     try:
-        search_and_display(query)
+        app.search_and_display(query)
     except Exception as e:
         st.write("An error occurred during the search.")
         st.write(str(e))
+elif app.selection:
+    st.write(f"You selected {app.selection}")
+    st.write("Now you can label the photos from this event.")
+    st.write("TODO: Add a form to label the photos.")
