@@ -15,3 +15,18 @@ FROM dates_have_tags
 JOIN PETA_tags ON dates_have_tags.tag_id = PETA_tags.id
 ORDER BY dates_have_tags.date
 """
+
+CREATE_PHOTOS_TABLE = """
+CREATE TABLE IF NOT EXISTS photos (
+PhotoID TEXT PRIMARY KEY NOT NULL,
+FilePath TEXT NOT NULL,
+FileName TEXT NOT NULL,
+FileSize INTEGER NOT NULL,
+ImageWidth INTEGER,
+ImageHeight INTEGER,
+DateTaken DATETIME,
+ExifData TEXT,
+PETALabel TEXT,
+UserLabel TEXT
+)
+"""

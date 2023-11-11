@@ -1,8 +1,12 @@
 import argparse
+import sys
 import os
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from PIL import Image
+from sql_queries.queries import CREATE_PHOTOS_TABLE
 import sqlite3
 import sys
+
 
 from tqdm import tqdm
 DATE_TIME_EXIF_TAG = 0x9003
@@ -37,22 +41,7 @@ def create_database(conn):
     c = conn.cursor()
 
     # SQL command to create a table with the specified schema, only if it doesn't already exist
-    c.execute(
-        """
-              CREATE TABLE IF NOT EXISTS photos (
-              PhotoID TEXT PRIMARY KEY NOT NULL,
-              FilePath TEXT NOT NULL,
-              FileName TEXT NOT NULL,
-              FileSize INTEGER NOT NULL,
-              ImageWidth INTEGER,
-              ImageHeight INTEGER,
-              DateTaken DATETIME,
-              ExifData TEXT,
-              PETALabel TEXT,
-              UserLabel TEXT
-              )
-              """
-    )
+    c.execute(CREATE_PHOTOS_TABLE)
     # Commit the changes and close the connection
     conn.commit()
 
