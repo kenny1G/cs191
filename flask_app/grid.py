@@ -13,6 +13,11 @@ from flask import (
     current_app,
 )
 
+from sql_queries.queries import (
+    GET_2023_PHOTOS,
+    GET_DATE_TAGS
+)
+
 bp = Blueprint("grid", __name__)
 database_path = current_app.config["DATABASE"]
 print(database_path)
@@ -33,15 +38,7 @@ def images():
     c = conn.cursor()
 
     # Execute the query to fetch all photos taken in 2023 where DateTaken is not null and order them by taken_date
-    c.execute(
-        """
-        SELECT DISTINCT FileName, ImageWidth, ImageHeight, DateTaken
-        FROM copied
-        WHERE DateTaken IS NOT NULL
-        AND SUBSTR(DateTaken, 1, 4) = '2023'
-        ORDER BY DateTaken
-        """
-    )
+    c.execute(GET_2023_PHOTOS)
     rows = c.fetchall()
 
     # Prepare the images data according to the new database definition
@@ -61,14 +58,7 @@ def images():
         images[-1][1].append((file_name, image_width, image_height))
 
     # Fetch the tags associated with each day
-    c.execute(
-        """
-        SELECT dates_have_tags.date, PETA_tags.tag
-        FROM dates_have_tags
-        JOIN PETA_tags ON dates_have_tags.tag_id = PETA_tags.id
-        ORDER BY dates_have_tags.date
-        """
-    )
+    c.execute(GET_DATE_TAGS)
     tag_rows = c.fetchall()
 
     # Prepare the tags data

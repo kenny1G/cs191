@@ -3,3 +3,6 @@
 misc/
 data_cleaned/
 photos.db
+instance/symlink
+sql_queries/__pycache__/*
+flask_app/static/photos_zip.zip
