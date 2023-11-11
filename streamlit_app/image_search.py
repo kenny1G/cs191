@@ -1,10 +1,24 @@
-import streamlit as st
-import pinecone
+import os
+import sys
+import sqlite3
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from collections import Counter
+import streamlit as st
+import streamlit.components.v1 as components
+import pinecone
 from sentence_transformers import SentenceTransformer
 import numpy as np
-import os
 from dotenv import load_dotenv
+from sql_queries.queries import GET_PHOTO_BY_DATE
+
+ROOT_DIRECTORY = os.path.dirname(os.path.abspath(os.curdir))
+FLASK_PATH = "http://127.0.0.1:5000/static/"
+INSTANCE_DIR = os.path.join(ROOT_DIRECTORY, "instance")
+DB_PATH = os.path.join(INSTANCE_DIR, "photos.db")
+print("ROOT_DIRECTORY:", ROOT_DIRECTORY)
+print("INSTANCE_DIR:", INSTANCE_DIR)
+print("DB_PATH:", DB_PATH)
 
 load_dotenv()
 api_key = os.getenv("PINECONE_API_KEY")
@@ -54,9 +68,35 @@ def aggregate_results(matches):
 
 
 def display_results(date_counts):
-    st.write("Dates with the highest scores:")
-    for date, score in date_counts:
-        st.write(f"{date}: {score} score")
+    # Connect to the database
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+
+        st.write("Dates with the highest scores:")
+        html_string = ""
+        for date, score in date_counts:
+            # Use the GET_PHOTO_BY_DATE query to get the photos associated with the date
+            cursor.execute(f"{GET_PHOTO_BY_DATE}", (date,))
+            photos = cursor.fetchall()
+            img_string = ""
+            for photo in photos:
+                photo_path = os.path.join(FLASK_PATH, "converted_photos", photo[0])
+                img_string += f"""
+                <img src="{photo_path}"
+                    style="margin: 5px; height: 300px; object-fit: contain"
+                    alt="Photo taken on {date}" >
+                """
+            html_string = f"""
+            <main >
+            <h2 style='color: white;'>{date} with {score} score</h2>
+            <div style='display: flex; justify-content: center; overflow-x: auto;'>
+            {img_string}
+            </div>
+            </main>
+            """
+            components.html(html_string, height=400)
+        # Display the photos in the html component
+        # Close the database connection
 
 
 def search_and_display(query):

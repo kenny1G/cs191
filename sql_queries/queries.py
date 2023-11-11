@@ -1,4 +1,8 @@
 # queries.py
+GET_PHOTO_BY_DATE = """
+SELECT DISTINCT FileName FROM copied WHERE SUBSTR(DateTaken, 1, 10) = ?
+"""
+
 GET_ALL_PHOTOS = "SELECT * FROM photos"
 
 GET_2023_PHOTOS = """
