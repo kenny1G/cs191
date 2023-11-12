@@ -3,7 +3,6 @@ import sys
 import sqlite3
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-from collections import Counter
 import streamlit as st
 import streamlit.components.v1 as components
 import pinecone
@@ -16,6 +15,9 @@ ROOT_DIRECTORY = os.path.dirname(os.path.abspath(os.curdir))
 FLASK_PATH = "http://127.0.0.1:5000/static/"
 INSTANCE_DIR = os.path.join(ROOT_DIRECTORY, "instance")
 DB_PATH = os.path.join(INSTANCE_DIR, "photos.db")
+LEARNINGS = 0
+RESULTS = 1
+
 
 class ImageSearchApp:
     def __init__(self):
@@ -58,9 +60,9 @@ class ImageSearchApp:
         date_counts = sorted(date_scores.items(), key=lambda x: x[1], reverse=True)
         return date_counts
 
-    def display_results(self, date_counts):
+    def generate_results(self, date_counts):
+        results = []
         cursor = self.conn.cursor()
-        st.write("Dates with the highest scores:")
         for date, score in date_counts:
             cursor.execute(f"{GET_PHOTO_BY_DATE}", (date,))
             photos = cursor.fetchall()
@@ -79,31 +81,52 @@ class ImageSearchApp:
             </div>
             </main>
             """
-            if st.button(date):
-                print(self.selection)
-                self.selection = date
-                return date
-            components.html(html_string, height=400)
+            results.append((date, html_string))
+        return results
 
     def search_and_display(self, query):
         query_vector = self.get_query_vector(query)
         matches = self.search_images(query_vector)
         date_counts = self.aggregate_results(matches)
-        selection = self.display_results(date_counts)
-        return selection
+        return self.generate_results(date_counts)
 
-if 'app' not in st.session_state:
+
+if "app" not in st.session_state:
     st.session_state.app = ImageSearchApp()
+
+if "app_state" not in st.session_state:
+    st.session_state["app_state"] = LEARNINGS
+
 app = st.session_state.app
+
 st.title("Image Search")
 query = st.text_input("What Event Do You seek?")
-if st.button("Search"):
-    try:
-        app.search_and_display(query)
-    except Exception as e:
-        st.write("An error occurred during the search.")
-        st.write(str(e))
-elif app.selection:
-    st.write(f"You selected {app.selection}")
-    st.write("Now you can label the photos from this event.")
-    st.write("TODO: Add a form to label the photos.")
+
+
+def click_search_button():
+    st.session_state["app_state"] = RESULTS
+
+
+def click_date_button(date):
+    st.session_state["app_state"] = LEARNINGS
+    app.selection = date
+
+
+st.button("Search", on_click=click_search_button)
+
+st.write(st.session_state["app_state"])
+match st.session_state["app_state"]:
+    case 0:
+        st.write(f"You selected {app.selection}")
+    case 1:
+        try:
+            results = app.search_and_display(query)
+            for date, html_string in results:
+                st.button(date, on_click=click_date_button, args=[date])
+                components.html(html_string, height=400)
+        except Exception as e:
+            st.write("An error occurred during the search.")
+            st.write(str(e))
+        st.write("Results")
+    case _:
+        st.write(st.session_state)
