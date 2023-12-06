@@ -65,6 +65,23 @@ class ImageSearchApp:
     def get_images(self):
         return self.google_photos_api.media_items_df['baseUrl']
 
+
+    def search_and_display(self, _query):
+        years_filter = [2023]
+        months_filter = [2]
+        top_k = 10
+        return self.query_images(_query, years_filter, months_filter, top_k)
+        # first_pass = self.first_pass_search(query)
+        # st.write(first_pass)
+        # if not first_pass:
+        #     query_vector = self.get_query_vector_clip(query)
+        #     matches = self.search_images(query_vector)
+        #     date_counts = self.aggregate_results(matches)
+        #     return (self.generate_results(date_counts), query_vector)
+        # else:
+        #     date_counts = self.aggregate_results(first_pass)
+        #     return (self.generate_results(date_counts), None)
+
     def query_images(self, query, years_filter, months_filter, top_k):
 
         # create the query vector
@@ -92,24 +109,8 @@ class ImageSearchApp:
             img_text = month_name(img_month) + ' of ' + str(img_year)
             meta_text.append(img_text)
 
-        ipyplot.plot_images(img_urls, meta_text, img_width=250, show_url=False)
+        # ipyplot.plot_images(img_urls, meta_text, img_width=250, show_url=False)
         return img_urls
-
-    def search_and_display(self, query):
-        years_filter = [2023]
-        months_filter = [2, 3]
-        top_k = 10
-        return self.query_images(query, years_filter, months_filter, top_k)
-        # first_pass = self.first_pass_search(query)
-        # st.write(first_pass)
-        # if not first_pass:
-        #     query_vector = self.get_query_vector_clip(query)
-        #     matches = self.search_images(query_vector)
-        #     date_counts = self.aggregate_results(matches)
-        #     return (self.generate_results(date_counts), query_vector)
-        # else:
-        #     date_counts = self.aggregate_results(first_pass)
-        #     return (self.generate_results(date_counts), None)
 
     def first_pass_search(self, query):
         query_vector = self.get_query_vector_clip(query)
@@ -183,20 +184,28 @@ class ImageSearchApp:
 
 
 
+st.set_page_config(layout="wide")
 if "app" not in st.session_state:
     st.session_state.app = ImageSearchApp()
 
 if "app_state" not in st.session_state:
     st.session_state["app_state"] = LEARNINGS
 
+if "search_journey" not in st.session_state:
+    st.session_state["search_journey"] = []
+
 app = st.session_state.app
 
-st.title("Image Search")
-query = st.text_input("What Event Do You seek?")
+st.title("Storylines: Smart Image Search")
+query = st.text_input("Search till you find it!", key="text_input_query")
 
 
 def click_search_button():
     st.session_state["app_state"] = RESULTS
+    st.session_state.search_journey.append(query)
+    # Clear the text in the search bar
+    # query = st.session_state["text_input_query"]
+    # st.session_state["text_input_query"] = ""
 
 
 # We update pinecone with queries that users have matched with an event
@@ -218,8 +227,11 @@ def click_date_button(date, query_vector, query):
 
 st.button("Search", on_click=click_search_button)
 
+
 match st.session_state["app_state"]:
     case 0:
+        #TODO: Cleaner gallery, organized by date
+        st.header("Gallery")
         image_urls = app.get_images()
         controls = st.columns(3)
         with controls[0]:
@@ -237,7 +249,6 @@ match st.session_state["app_state"]:
             with grid[col]:
                 st.image(image_url)
             col = (col + 1) % row_size
-        st.header("Gallery finna go here")
     case 1:
         try:
             # results, query_vector = app.search_and_display(query)
@@ -265,3 +276,10 @@ match st.session_state["app_state"]:
             st.write(str(e))
     case _:
         st.write(st.session_state)
+
+with st.sidebar:
+    if st.session_state.search_journey != []:
+        st.header("Search Journey So Far")
+        for user_query in st.session_state.search_journey:
+            st.write(user_query)
+
