@@ -18,6 +18,7 @@ import itertools
 class GooglePhotosApi:
     def __init__(
         self,
+        credentials,
         email="oseleonose@gmail.com",
         api_name="photoslibrary",
         client_secret_file=r"./credentials/client_secret.json",
@@ -38,6 +39,7 @@ class GooglePhotosApi:
         self.email = email
         self.api_name = api_name
         self.client_secret_file = client_secret_file
+        self.credentials = credentials
         self.api_version = api_version
         self.scopes = scopes
         self.cred_pickle_file = f"./credentials/token_{self.api_name}_{self.api_version}_{self.email}.pickle"
@@ -54,9 +56,14 @@ class GooglePhotosApi:
             if self.cred and self.cred.expired and self.cred.refresh_token:
                 self.cred.refresh(Request())
             else:
-                flow = InstalledAppFlow.from_client_secrets_file(
-                    self.client_secret_file, self.scopes
-                )
+                if os.path.exists(self.client_secret_file):
+                    flow = InstalledAppFlow.from_client_secrets_file(
+                        self.client_secret_file, self.scopes
+                    )
+                else:
+                    flow = InstalledAppFlow.from_client_config(
+                        self.credentials, self.scopes
+                    )
                 self.cred = flow.run_local_server()
 
             with open(self.cred_pickle_file, "wb") as token:

@@ -54,6 +54,24 @@ def month_name(month):
     return month_text
 
 
+def generate_gphotos_secret():
+    credentials = {
+        "installed": {
+            "client_id": st.secrets["google_photos_credentials"]["client_id"],
+            "project_id": st.secrets["google_photos_credentials"]["project_id"],
+            "auth_uri": st.secrets["google_photos_credentials"]["auth_uri"],
+            "token_uri": st.secrets["google_photos_credentials"]["token_uri"],
+            "auth_provider_x509_cert_url": st.secrets["google_photos_credentials"][
+                "auth_provider_x509_cert_url"
+            ],
+            "client_secret": st.secrets["google_photos_credentials"]["client_secret"],
+            "redirect_uris": st.secrets["google_photos_credentials"]["redirect_uris"],
+        }
+    }
+    print(credentials)
+    return credentials
+
+
 class ImageSearchApp:
     def __init__(self):
         self.load_env_vars()
@@ -246,7 +264,9 @@ def click_date_button(date, query_vector, query):
 
 
 def click_auth_button(email):
-    app.google_photos_api = GooglePhotosApi(email=email)
+    app.google_photos_api = GooglePhotosApi(
+        credentials=generate_gphotos_secret(), email=email
+    )
     app.google_photos_api.run_local_server()
     app.namespace = email
     # app.google_photos_api.get_media_files(app.model)
