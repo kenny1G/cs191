@@ -19,10 +19,8 @@ class GooglePhotosApi:
     def __init__(
         self,
         credentials,
-        email="oseleonose@gmail.com",
-        api_name="photoslibrary",
-        client_secret_file=r"./credentials/client_secret.json",
-        api_version="v1",
+        _uid,
+        client_secret_file=r"./credentials/client_secret_web.json",
         scopes=["https://www.googleapis.com/auth/photoslibrary"],
     ):
         """
@@ -36,14 +34,50 @@ class GooglePhotosApi:
             service:
         """
 
-        self.email = email
-        self.api_name = api_name
-        self.client_secret_file = client_secret_file
         self.credentials = credentials
-        self.api_version = api_version
+        self.uid = _uid
+        self.state = None
+        self.client_secret_file = client_secret_file
         self.scopes = scopes
-        self.cred_pickle_file = f"./credentials/token_{self.api_name}_{self.api_version}_{self.email}.pickle"
+        self.cred_pickle_file = f"./credentials/token_{self.uid}.pickle"
         self.cred = None
+
+    # This function is used to set up authorization against the google photos api
+    # if there is no pickle file with stored credentials,
+    # set the authorization url and state needed to create one
+    # it is the responsibility of the caller to call get_credentials()
+    # with the code returned from the authorization url
+    def init_auth(self):
+        # is checking if there is already a pickle file with relevant credentials
+        if os.path.exists(self.cred_pickle_file):
+            with open(self.cred_pickle_file, "rb") as token:
+                self.cred = pickle.load(token)
+
+        if not self.cred or not self.cred.valid:
+            if self.cred and self.cred.expired and self.cred.refresh_token:
+                self.cred.refresh(Request())
+            else:
+                # if there is no pickle file with stored credentials,
+                # create one using google_auth_oauthlib.flow
+
+                # check if we are running in streamlit or locally
+                # if os.path.exists(self.client_secret_file):
+                #     self.flow = Flow.from_client_secrets_file(
+                #         self.client_secret_file, self.scopes
+                #     )
+                # else:
+                self.flow = Flow.from_client_config(
+                    self.credentials, self.scopes,
+                )
+                #TODO: change redirect_uri to the one used in streamlit
+                self.flow.redirect_uri = "http://localhost:8501/"
+                self.auth_url, self.state =self.flow.authorization_url()
+
+    def get_credentials(self, code):
+        self.flow.fetch_token(code=code)
+        self.cred = self.flow.credentials
+        with open(self.cred_pickle_file, "wb") as token:
+            pickle.dump(self.cred, token)
 
     def run_local_server(self):
         # is checking if there is already a pickle file with relevant credentials
@@ -64,7 +98,7 @@ class GooglePhotosApi:
                     flow = InstalledAppFlow.from_client_config(
                         self.credentials, self.scopes
                     )
-                self.cred = flow.run_local_server()
+                self.cred = flow.run_local_server(open_browser=False)
 
             with open(self.cred_pickle_file, "wb") as token:
                 pickle.dump(self.cred, token)
@@ -86,7 +120,7 @@ class GooglePhotosApi:
         self.media_items_df = pd.DataFrame()
 
         self.media_items_pickle_file = (
-            f"./data/media_items_{self.email}.pickle"
+            f"./data/media_items_{self.uid}.pickle"
         )
         if os.path.exists(self.media_items_pickle_file):
             with open(self.media_items_pickle_file, "rb") as items_df:
@@ -128,7 +162,7 @@ class GooglePhotosApi:
             url_list = self.media_items_df["baseUrl"].values.tolist()
             images = []
             errored = []
-            images_pickle_file = f"./data/images_{self.email}.pickle"
+            images_pickle_file = f"./data/images_{self.uid}_{sdate}_{edate}.pickle"
 
             if os.path.exists(images_pickle_file):
                 with open(images_pickle_file, "rb") as images_file:
@@ -242,7 +276,7 @@ class GooglePhotosApi:
             # Send requests in parallel
             async_results = [
                 index.upsert(
-                    vectors=ids_vectors_chunk, namespace=self.email, async_req=True
+                    vectors=ids_vectors_chunk, namespace=self.uid, async_req=True
                 )
                 for ids_vectors_chunk in chunks(vectors, batch_size=100)
             ]
