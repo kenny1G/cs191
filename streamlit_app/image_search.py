@@ -147,6 +147,11 @@ class ImageSearchApp:
         # ipyplot.plot_images(img_urls, meta_text, img_width=250, show_url=False)
         return img_urls
 
+if not os.path.exists('./credentials'):
+    os.makedirs('./credentials')
+if not os.path.exists('./data'):
+    os.makedirs('./data')
+
 
 state = None
 uid = None
@@ -237,9 +242,8 @@ def click_login_button(uid):
     )
     app.google_photos_api.init_auth()
     state = app.google_photos_api.state
-    if state != None:
-        with open(f"./credentials/uid_{state}.pickle", "wb") as uid_file:
-            pickle.dump(uid, uid_file)
+    with open(f"./credentials/uid_{state}.pickle", "wb") as uid_file:
+        pickle.dump(uid, uid_file)
 
     if os.path.exists(f"./credentials/token_{uid}.pickle"):
         if os.path.exists(f"./data/media_items_{uid}.pickle"):
