@@ -1,5 +1,3 @@
-import os
-import pickle
 import streamlit as st
 
 from google_auth_oauthlib.flow import Flow
@@ -46,9 +44,11 @@ def get_credentials(uid):
 
 def click_login_button(uid):
     try:
-        # If we already have credentials, we don't need to authenticate again
+        # Reached when user logs in and we already have a token so dont need
+        # to go through google
         credentials = get_credentials(uid)
         st.session_state["credentials"] = credentials
+        st.session_state["uid"] = uid
         st.header("You are successfully authenticated against the Google Photos API!")
         st.write("Go to other parts of the demo to search or upload images.")
         st.write("You can also reauth as a different user by entering a different UID.")
@@ -73,14 +73,23 @@ if "authenticating" not in st.session_state:
 authenticating = st.session_state["authenticating"]
 if not authenticating:
     if "code" not in st.experimental_get_query_params():
-        # First entry, ask for user id
-        uid = st.text_input("UID")
-        st.button("Login", on_click=click_login_button, args=[uid])
+        if "uid" in st.session_state:
+            # User is already logged in
+            st.header("You are successfully authenticated against the Google Photos API!")
+            st.write("Go to other parts of the demo to search or upload images.")
+            st.write("You can also reauth as a different user by entering a different UID.")
+            uid = st.text_input("UID")
+            st.button("Login", on_click=click_login_button, args=[uid])
+        else:
+            # First entry, ask for user id
+            uid = st.text_input("UID")
+            st.button("Login", on_click=click_login_button, args=[uid])
     else:
         # Reached when we are redirected back from google
         code = st.experimental_get_query_params()["code"][0]
         uid = st.experimental_get_query_params()["uid"][0]
         credentials = get_credentials(uid)
+        st.session_state["uid"] = uid
         st.session_state["credentials"] = credentials
         st.header("You are successfully authenticated against the Google Photos API!")
         st.write("Go to other parts of the demo to search or upload images.")

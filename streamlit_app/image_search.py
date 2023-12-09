@@ -76,12 +76,14 @@ def generate_gphotos_secret():
     }
     return credentials
 
-
+@st.cache_resource
+def load_model():
+    return SentenceTransformer("clip-ViT-B-32")
 class ImageSearchApp:
     def __init__(self):
         self.load_env_vars()
         self.init_pinecone()
-        self.model = SentenceTransformer("clip-ViT-B-32")
+        self.model = load_model()
 
     def load_env_vars(self):
         load_dotenv()
