@@ -19,6 +19,8 @@ if "credentials" not in st.session_state or "uid" not in st.session_state:
 
 credentials = st.session_state["credentials"]
 uid = st.session_state["uid"]
+# index name for image embeddings
+im_index_name = "photo-captions"
 
 if credentials.expired and credentials.refresh_token:
     credentials.refresh(Request())
@@ -37,7 +39,9 @@ def get_pinecone_image_index():
         api_key=os.getenv("PINECONE_API_KEY"),
         environment=os.getenv("PINECONE_ENVIRONMENT"),
     )
-    return pinecone.Index("image-embeddings")
+    if im_index_name not in pinecone.list_indexes():
+        pinecone.create_index(name=im_index_name, dimension=512, metric="cosine")
+    return pinecone.Index("im_index_name")
 
 
 clip_model = load_model()
@@ -91,6 +95,9 @@ def get_response_from_medium_api(year, month, day):
     try:
         res = requests.request("POST", url, data=json.dumps(payload), headers=headers)
     except:
+        print("URL: ", url)
+        print("Payload: ", json.dumps(payload))
+        print("Headers: ", headers)
         print("Request error")
 
     return res
@@ -100,6 +107,7 @@ def get_response_from_medium_api(year, month, day):
 def get_images_in_date_range(uid, sdate, edate):
     date_list = pd.date_range(sdate, edate - timedelta(days=1), freq="d")
     media_items_df = pd.DataFrame()
+    print("get_image_in_date_range, listing media items")
     for date in date_list:
         items_df, media_items_df = list_of_media_items(
             year=date.year,
@@ -135,12 +143,13 @@ def get_image(url):
         return None
 
 
-@st.cache_data
+# @st.cache_data
 def load_images_into_memory(media_items_df):
     url_list = media_items_df["baseUrl"].values.tolist()
     images = []
+    image_dict = {}
     i = 0
-    for url in url_list:
+    for j, url in enumerate(url_list):
         image = get_image(url)
         # Hacky way to deal with images that error out
         while image is None:
@@ -148,7 +157,8 @@ def load_images_into_memory(media_items_df):
             image = get_image(url_list[i])
 
         images.append(image)
-    return images
+        image_dict[media_items_df["id"].values[j]] = image
+    return images, image_dict
 
 @st.cache_data
 def embed_images(_images, uid, sdate, edate):
@@ -176,7 +186,7 @@ def upsert_to_pinecone(namespace, media_items_df):
     # Upsert data with 100 vectors per upsert request asynchronously
     # - Create pinecone.Index with pool_threads=30 (limits to 30 simultaneous requests)
     # - Pass async_req=True to index.upsert()
-    with pinecone.Index(index_name="photo-captions", pool_threads=30) as index:
+    with pinecone.Index(index_name=im_index_name, pool_threads=30) as index:
         # Send requests in parallel
         async_results = [
             index.upsert(
@@ -201,17 +211,24 @@ def click_date_range_button(start_date, end_date):
     if media_items_df is None:
         st.warning("No images found in date range")
         return
+
     print("Loading Images")
-    images = load_images_into_memory(media_items_df)
+    images, image_dict = load_images_into_memory(media_items_df)
+
     print("Embedding Images")
     embeddings = embed_images(images, uid, start_date, end_date)
     media_items_df["vector"] = embeddings
     media_items_df["metadata"] = media_items_df.loc[
         :, ["year", "month", "day"]
     ].to_dict("records")
+    print(image_dict)
+
     print("Upserting to Pinecone")
     upsert_to_pinecone(uid, media_items_df)
     st.info(f"Upserted {len(media_items_df)} images from {start_date} to {end_date} ")
+
+    st.session_state["media_items_df"] = media_items_df
+    st.session_state["image_dict"] = image_dict
 
 st.header("Date Selection")
 st.write("Please select a date range for the images to include in your search")
