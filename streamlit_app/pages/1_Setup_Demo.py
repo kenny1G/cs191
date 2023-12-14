@@ -60,7 +60,7 @@ def click_login_button(uid):
         auth_url, state = flow.authorization_url()
         st.write(
             f"""<h1>
-            Please login using this <a target="_self"
+            Please login using this <a target="_blank"
             href="{auth_url}">url</a></h1>""",
             unsafe_allow_html=True,
         )
