@@ -109,7 +109,7 @@ def get_response_from_medium_api(year, month, day):
     return res
 
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=3600)
 def get_images_in_date_range(uid, sdate, edate):
     date_list = pd.date_range(sdate, edate - timedelta(days=1), freq="d")
     media_items_df = pd.DataFrame()
@@ -144,7 +144,6 @@ def get_images_in_date_range(uid, sdate, edate):
         return media_items_df
 
 
-@st.cache_data
 def get_image(url):
     try:
         return Image.open(requests.get(url, stream=True).raw)
@@ -284,7 +283,7 @@ def click_date_range_button(start_date, end_date):
     media_items_df['captions'] = media_items_df['id'].map(captions_dict)
 
     media_items_df["metadata"] = media_items_df.loc[
-        :, ["year", "month", "day", "captions"]
+        :, ["id", "year", "month", "day", "captions"]
     ].to_dict("records")
 
     print("Upserting to Pinecone")
