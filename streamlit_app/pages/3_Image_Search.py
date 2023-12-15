@@ -1,13 +1,8 @@
 import logging
-from dotenv import load_dotenv
-import os
-import pinecone
-from sentence_transformers import SentenceTransformer
 import streamlit as st
 from streamlit_image_select import image_select
 from langchain.llms import OpenAI
 from huggingface_hub import InferenceClient
-from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.retrievers import RePhraseQueryRetriever
 from langchain_community.vectorstores import Pinecone
 from langchain.chains import LLMChain
@@ -30,6 +25,8 @@ if "media_items_df" not in st.session_state:
     st.stop()
 
 im_index_name = "photo-captions"
+uid = st.session_state["uid"]
+media_items_df = st.session_state["media_items_df"]
 
 month_names = [
     "NOOP",
@@ -106,16 +103,11 @@ if "search_journey" not in st.session_state:
 if "image_results" not in st.session_state:
     st.session_state["image_results"] = []
 
-st.set_page_config(layout="wide")
 embedder = load_embedder()
 blip_inference = load_inference()
-# images = st.session_state["images"]
-uid = st.session_state["uid"]
 pinecone_index = get_pinecone_image_index()
 vectorstore: Pinecone = get_vectorstore(uid, pinecone_index, embedder)
 llm_agent = init_langchain(uid, pinecone_index)
-id_to_image = st.session_state["image_dict"]
-media_items_df = st.session_state["media_items_df"]
 row_size = 5
 top_k = 50
 top_k_fewshot = 10
@@ -207,7 +199,7 @@ st.button("Search", on_click=click_search_button, args=[query])
 if st.session_state.showing_results:
     col1, col2, col3 = st.columns([1, 3, 1])
     with col2:
-        st.header("Most Relevant To Your Search")
+        st.header("Most Relevant")
         image_results = st.session_state.image_results
         images = [x[0] for x in image_results]
         selection_id = image_select(
@@ -217,11 +209,11 @@ if st.session_state.showing_results:
         )
         selection = image_results[selection_id]
     with col1:
-        st.header("Current Target Image")
+        st.header("Target Image")
         st.image(selection[0])
         st.button("Accept", on_click=learn_from_target_image, args=[selection])
     with col3:
-        st.header("Search Journey")
+        st.header("Journey")
         search_journey_str = " <li>".join(st.session_state.search_journey)
         st.write(f"<ol><li>{search_journey_str}</ol>", unsafe_allow_html=True)
         st.button("Clear Search Journey", on_click=clear_search_journey)

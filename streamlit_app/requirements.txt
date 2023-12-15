@@ -1,10 +1,12 @@
 google_api_python_client==2.101.0
 google_auth_oauthlib==1.1.0
+huggingface_hub==0.17.3
 ipyplot==1.1.1
 langchain==0.0.350
+langchain_community==0.0.3
+modal==0.54.3835
 numpy==1.26.2
 pandas==2.1.4
-Pillow==10.1.0
 Pillow==10.1.0
 pinecone_client==2.2.4
 protobuf==3.20.3
@@ -12,7 +14,7 @@ python-dotenv==1.0.0
 Requests==2.31.0
 sentence_transformers==2.2.2
 sql_queries==0.1.2
-streamlit
+streamlit==1.28.1
 streamlit_image_select==0.6.0
 tqdm==4.66.1
-transformers==4.33.3
+openai
