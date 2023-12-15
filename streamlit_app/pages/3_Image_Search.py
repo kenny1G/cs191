@@ -13,6 +13,8 @@ from langchain_community.vectorstores import Pinecone
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 
+logging.basicConfig()
+logging.getLogger("langchain.retrievers.re_phraser").setLevel(logging.DEBUG)
 
 if "credentials" not in st.session_state or "uid" not in st.session_state:
     st.warning(
@@ -58,22 +60,22 @@ language image search queries from a user. Your job is to analyze these \
 queries, identify the core visual elements they are seeking, and combine \
 these elements into a single, coherent query. This synthesized query should \
 be optimized for searching against a vectorstore with CLIP embeddings, \
-which means it needs to be clear, focused, and stripped of any irrelevant details. \
-Here are the user's queries: {queries} \
-Your task is to synthesize these queries into one concise and effective \
-query for a vectorstore. Remember to focus on visual elements and \
-descriptors that are key for image retrieval. \
+which means it needs to be clear, focused on visual elements and descriptors \
+that are key for image retrieval, and stripped of any irrelevant details. \
+{queries} \
 Synthesized Query:"""
 
 
 @st.cache_resource
-def init_langchain(uid, _pinecone_index):
-    logging.basicConfig()
-    logging.getLogger("langchain.retrievers.re_phraser").setLevel(logging.DEBUG)
-
+def get_vectorstore(uid, _pinecone_index):
     embed = HuggingFaceEmbeddings(model_name="clip-Vit-B-32")
     text_field = "id"
     vectorstore = Pinecone(_pinecone_index, embed, text_field, namespace=uid)
+    return vectorstore
+
+
+def init_langchain(uid, _pinecone_index):
+    vectorstore = get_vectorstore(uid, _pinecone_index)
     QUERY_PROMPT = PromptTemplate(
         input_variables=["queries"],
         template=PROMPT,
@@ -82,7 +84,9 @@ def init_langchain(uid, _pinecone_index):
     llm_chain = LLMChain(llm=llm, prompt=QUERY_PROMPT)
 
     retriever_from_llm_chain = RePhraseQueryRetriever(
-        retriever=vectorstore.as_retriever(search_kwargs={'k': 10}), llm_chain=llm_chain, k=50
+        retriever=vectorstore.as_retriever(search_kwargs={"k": 10}),
+        llm_chain=llm_chain,
+        k=50,
     )
     return retriever_from_llm_chain
 
@@ -124,16 +128,32 @@ blip_inference = load_inference()
 # images = st.session_state["images"]
 uid = st.session_state["uid"]
 pinecone_index = get_pinecone_image_index()
+vectorstore: Pinecone = get_vectorstore(uid, pinecone_index)
 llm_agent = init_langchain(uid, pinecone_index)
 id_to_image = st.session_state["image_dict"]
 media_items_df = st.session_state["media_items_df"]
 row_size = 5
 top_k = 50
+top_k_fewshot = 10
 
 
 @st.cache_data
 def query_images(search_journey):
-    docs = llm_agent.get_relevant_documents("\n\n".join(search_journey), k=top_k)
+    queries_string = ", ".join(search_journey)
+    docs = vectorstore.similarity_search(
+        query=queries_string, k=top_k_fewshot, namespace=f"{uid}_fewshot"
+    )
+    fewshots_query = ""
+    if docs:
+        fewshots_query = "Examples:\n"
+        for doc in docs:
+            fewshots_query += f"{doc.metadata['learnings']}\n"
+    fewshots_query += f"User Queries: {', '.join(search_journey)}\n"
+
+    if len(search_journey) > 1:
+        docs = llm_agent.get_relevant_documents(fewshots_query)
+    else:
+        docs = vectorstore.similarity_search(query=queries_string, k=top_k)
     results = []
     for doc in docs:
         id = doc.page_content
@@ -144,6 +164,9 @@ def query_images(search_journey):
 
 
 def click_search_button(query):
+    if query == "":
+        st.warning("Please enter a query to search.")
+        return
     st.session_state.search_journey.append(query)
     st.session_state.image_results = query_images(st.session_state.search_journey)
     st.session_state.showing_results = True
@@ -176,10 +199,16 @@ def learn_from_target_image(image_url_and_id):
     few_shot_example = (
         f"User Queries: {queries_string} \nSynthesized Query: {blip_caption}"
     )
-    print(few_shot_example)
-    caption_embedding = clip_model.encode(few_shot_example)
+
+    caption_embedding = clip_model.encode(queries_string)
     pinecone_index.upsert(
-        vectors=[(image_url_and_id[1], caption_embedding.tolist(), {"id": image_url_and_id[1], "learnings": few_shot_example})],
+        vectors=[
+            (
+                id,
+                caption_embedding.tolist(),
+                {"id": image_url_and_id[1], "learnings": few_shot_example},
+            )
+        ],
         namespace=f"{uid}_fewshot",
         async_req=True,
     )
