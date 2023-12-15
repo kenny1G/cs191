@@ -2,27 +2,20 @@ import streamlit as st
 
 st.set_page_config(
     page_title="Storylines Image Search",
-    page_icon="👋",
+    page_icon="🔍",
 )
 
-st.write("# Welcome to Streamlit! 👋")
+st.write("# Welcome to Storylines Image Search! 🔍")
 
-st.sidebar.success("Select a demo above.")
+st.sidebar.success("Follow the steps on the right to use the app.")
 
 st.markdown(
-    """
-    Streamlit is an open-source app framework built specifically for
-    Machine Learning and Data Science projects.
-    **👈 Select a demo from the sidebar** to see some examples
-    of what Streamlit can do!
-    ### Want to learn more?
-    - Check out [streamlit.io](https://streamlit.io)
-    - Jump into our [documentation](https://docs.streamlit.io)
-    - Ask a question in our [community
-        forums](https://discuss.streamlit.io)
-    ### See more complex demos
-    - Use a neural net to [analyze the Udacity Self-driving Car Image
-        Dataset](https://github.com/streamlit/demo-self-driving)
-    - Explore a [New York City rideshare dataset](https://github.com/streamlit/demo-uber-nyc-pickups)
+"""
+Storylines Image Search is an application that allows you to search for images using natural language queries.
+Here's how to use it:
+1. **Setup Demo**: Enter a unique ID and authenticate with Google Photos API.
+2. **Upsert Images**: Select a date range to fetch images from your Google Photos account. The images are then embedded and stored in a Pinecone vector index.
+3. **Image Search**: Enter a natural language query to search for images. \
+You can refine your search by adding more queries. Once you find your target image, click 'Accept' to train the system and improve future searches.
 """
 )

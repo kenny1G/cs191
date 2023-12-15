@@ -1,9 +1,12 @@
+import os
+from dotenv import load_dotenv
 import streamlit as st
 
 from google_auth_oauthlib.flow import Flow
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
 
+PROD_AUTHORIZED_UIDS = ["kenny", "nicki", "jay"]
 @st.cache_resource
 def generate_gphotos_secret():
     credentials = {
@@ -31,6 +34,8 @@ def load_flow():
     return flow
 
 flow = load_flow()
+load_dotenv()
+is_prod = os.getenv("IS_PROD", False)
 
 @st.cache_data
 def get_credentials(uid):
@@ -43,6 +48,9 @@ def get_credentials(uid):
     return flow.credentials
 
 def click_login_button(uid):
+    if is_prod and uid not in PROD_AUTHORIZED_UIDS:
+        st.error("That UID is not authorized to use this demo, Please contact the developer to be added to the allow list.")
+        return
     try:
         # Reached when user logs in and we already have a token so dont need
         # to go through google
