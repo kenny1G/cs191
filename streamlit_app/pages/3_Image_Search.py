@@ -52,7 +52,7 @@ def init_langchain(uid, _pinecone_index):
     logging.getLogger("langchain.retrievers.re_phraser").setLevel(logging.DEBUG)
 
     embed = HuggingFaceEmbeddings(model_name="clip-Vit-B-32")
-    text_field = "captions"
+    text_field = "id"
     vectorstore = Pinecone(_pinecone_index, embed, text_field, namespace=uid)
     QUERY_PROMPT = PromptTemplate(
         input_variables=["queries"],
@@ -193,7 +193,7 @@ with col2:
     for i, image in enumerate(media_items_df["baseUrl"].values):
         with grid[col]:
             st.image(image)
-            st.write(media_items_df["captions"].iloc[i])
+            # st.write(media_items_df["captions"].iloc[i])
         col = (col + 1) % row_size
 
 

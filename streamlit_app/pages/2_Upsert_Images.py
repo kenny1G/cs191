@@ -29,13 +29,11 @@ if credentials.expired and credentials.refresh_token:
     st.session_state["credentials"] = credentials
     st.info("Credentials refreshed")
 
+
 @st.cache_resource
 def load_model():
     return SentenceTransformer("clip-ViT-B-32")
 
-@st.cache_resource
-def load_captioner():
-    return pipeline("image-to-text", model="Salesforce/blip-image-captioning-base")
 
 @st.cache_resource
 def get_pinecone_image_index():
@@ -50,7 +48,6 @@ def get_pinecone_image_index():
 
 
 clip_model = load_model()
-blip_model = load_captioner()
 pinecone_index = get_pinecone_image_index()
 
 
@@ -169,6 +166,7 @@ def load_images_into_memory(media_items_df):
         image_dict[media_items_df["id"].values[j]] = image
     return images, image_dict
 
+
 @st.cache_data
 def embed_images(_images, uid, sdate, edate):
     embeddings = clip_model.encode(_images)
@@ -177,36 +175,6 @@ def embed_images(_images, uid, sdate, edate):
         img_embeddings.append(embedding.tolist())
     return img_embeddings
 
-@st.cache_data
-def caption_images(media_items_df):
-    img_captions = []
-    caption_embeddings = []
-    img_ids = []
-    errored = []
-    error_msg = ""
-
-
-    progress_text = "Captioning Images"
-    progress_bar = st.progress(0, text = progress_text)
-    for i, burl in tqdm(enumerate(media_items_df['baseUrl'].values), total=len(media_items_df)):
-        progress_bar.progress(i / len(media_items_df), text=progress_text)
-
-        try:
-            curr_id = media_items_df['id'].values[i]
-            curr_desc = blip_model(burl)
-            curr_desc = curr_desc[0]['generated_text']
-            curr_embedding = clip_model.encode(curr_desc).tolist()
-
-            img_ids.append(curr_id)
-            caption_embeddings.append(curr_embedding)
-            img_captions.append(curr_desc)
-        except Exception as e:
-            errored.append(media_items_df['id'].values[i])
-            st.warning(f"Failed to caption image {media_items_df['baseUrl'].values[i]}")
-            print(f"Error occurred: {e}")
-            return None, None, None
-    progress_bar.empty()
-    return img_ids, caption_embeddings, img_captions
 
 def chunks(iterable, batch_size=100):
     """A helper function to break an iterable into chunks of size batch_size."""
@@ -215,6 +183,7 @@ def chunks(iterable, batch_size=100):
     while chunk:
         yield chunk
         chunk = tuple(itertools.islice(it, batch_size))
+
 
 def upsert_to_pinecone(namespace, media_items_df, is_caption=False):
     vector = media_items_df.caption_embeddings if is_caption else media_items_df.vector
@@ -234,9 +203,7 @@ def upsert_to_pinecone(namespace, media_items_df, is_caption=False):
     with pinecone.Index(index_name=im_index_name, pool_threads=30) as index:
         # Send requests in parallel
         async_results = [
-            index.upsert(
-                vectors=ids_vectors_chunk, namespace=namespace, async_req=True
-            )
+            index.upsert(vectors=ids_vectors_chunk, namespace=namespace, async_req=True)
             for ids_vectors_chunk in chunks(vectors, batch_size=100)
         ]
         # Wait for and retrieve responses (this raises in case of error)
@@ -249,6 +216,7 @@ def upsert_to_pinecone(namespace, media_items_df, is_caption=False):
 
     while pinecone_index.describe_index_stats()["total_vector_count"] == 0:
         print(index.describe_index_stats())
+
 
 def click_date_range_button(start_date, end_date):
     print("Fetching Images")
@@ -271,28 +239,17 @@ def click_date_range_button(start_date, end_date):
     embeddings = embed_images(images, uid, start_date, end_date)
     media_items_df["vector"] = embeddings
 
-    print("Generating and Embedding Captions")
-    caption_ids, caption_embeddings, captions = caption_images(media_items_df)
-    if caption_ids is None:
-        st.stop()
-        return
-    caption_embeddings_dict = dict(zip(caption_ids, caption_embeddings))
-    captions_dict = dict(zip(caption_ids, captions))
-
-    media_items_df['caption_embeddings'] = media_items_df['id'].map(caption_embeddings_dict)
-    media_items_df['captions'] = media_items_df['id'].map(captions_dict)
-
     media_items_df["metadata"] = media_items_df.loc[
-        :, ["id", "year", "month", "day", "captions"]
+        :, ["id", "year", "month", "day"]
     ].to_dict("records")
 
     print("Upserting to Pinecone")
     upsert_to_pinecone(uid, media_items_df)
-    upsert_to_pinecone(uid, media_items_df, is_caption=True)
     st.info(f"Upserted {len(media_items_df)} images from {start_date} to {end_date} ")
 
     st.session_state["media_items_df"] = media_items_df
     st.session_state["image_dict"] = image_dict
+
 
 st.header("Date Selection")
 st.write("Please select a date range for the images to include in your search")
