@@ -168,27 +168,29 @@ def get_image_caption(image_url):
 
 
 def learn_from_target_image(image_url_and_id):
-    id = image_url_and_id[1]
-    image_url = image_url_and_id[0]
-    blip_caption = get_image_caption(image_url)
-    queries_string = ", ".join(st.session_state.search_journey)
-    few_shot_example = (
-        f"User Queries: {queries_string} \nSynthesized Query: {blip_caption}"
-    )
-    print(f"INFO:3_Image_Search.py: learned: {queries_string} : {blip_caption}")
+    with st.spinner("Learning"):
+        id = image_url_and_id[1]
+        image_url = image_url_and_id[0]
+        blip_caption = get_image_caption(image_url)
+        queries_string = ", ".join(st.session_state.search_journey)
+        few_shot_example = (
+            f"User Queries: {queries_string} \nSynthesized Query: {blip_caption}"
+        )
+        st.info(f"Learned: {queries_string} -> {blip_caption}")
+        print(f"INFO:3_Image_Search.py: learned: {queries_string} : {blip_caption}")
 
-    caption_embedding = embedder.embed_query(queries_string)
-    pinecone_index.upsert(
-        vectors=[
-            (
-                id,
-                caption_embedding,
-                {"id": image_url_and_id[1], "learnings": few_shot_example},
-            )
-        ],
-        namespace=f"{uid}_fewshot",
-        async_req=True,
-    )
+        caption_embedding = embedder.embed_query(queries_string)
+        pinecone_index.upsert(
+            vectors=[
+                (
+                    id,
+                    caption_embedding,
+                    {"id": image_url_and_id[1], "learnings": few_shot_example},
+                )
+            ],
+            namespace=f"{uid}_fewshot",
+            async_req=True,
+        )
     clear_search_journey()
 
 
@@ -219,13 +221,16 @@ if st.session_state.showing_results:
         st.button("Clear Search Journey", on_click=clear_search_journey)
 else:
     st.header("Gallery")
-    st.caption(
-        "If some images aren't showing, please go to Upsert Images and reupload images."
-    )
-    num_pages = int(len(media_items_df) / (row_size * (row_size + 1))) + 1
-    page_number = st.number_input(
-        label="Page Number", min_value=1, max_value=num_pages, value=1, step=1
-    )
+    _col1, _col2 = st.columns([1, 2])
+    with _col1:
+        num_pages = int(len(media_items_df) / (row_size * (row_size + 1))) + 1
+        page_number = st.number_input(
+            label="Page Number", min_value=1, max_value=num_pages, value=1, step=1
+        )
+    with _col2:
+        st.caption(
+            "If images aren't rendering, please go to Upsert Images and reupload images."
+        )
     grid = st.columns(row_size)
     col = 0
     batch_size = row_size * row_size

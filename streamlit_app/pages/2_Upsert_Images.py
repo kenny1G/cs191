@@ -197,6 +197,12 @@ def click_date_range_button(start_date, end_date):
 
     st.session_state["media_items_df"] = media_items_df
 
+    # Clear Search Journey
+    st.session_state["image_results"] = []
+    st.session_state["search_journey"] = []
+    st.session_state["text_input_query"] = ""
+    st.session_state["showing_results"] = False
+
 
 def ui_date_form():
     st.write("Select a date range for the images to index for search")
@@ -208,7 +214,7 @@ st.title("Date Selection")
 col1, col2 = st.columns([2, 1])
 if "media_items_df" in st.session_state:
     with col1:
-        st.header("Indexed Images")
+        st.header(f"{len(st.session_state.media_items_df)} Indexed Images")
         st.caption(
             "To index from a different date range, please select a new date range below."
         )
