@@ -12,6 +12,7 @@ from langchain.retrievers import RePhraseQueryRetriever
 from langchain_community.vectorstores import Pinecone
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
+from utils import load_embedder, get_pinecone_image_index
 
 logging.basicConfig()
 logging.getLogger("langchain.retrievers.re_phraser").setLevel(logging.DEBUG)
@@ -67,8 +68,8 @@ Synthesized Query:"""
 
 
 @st.cache_resource
-def get_vectorstore(uid, _pinecone_index):
-    embed = HuggingFaceEmbeddings(model_name="clip-Vit-B-32")
+def get_vectorstore(uid, _pinecone_index, _embedder):
+    embed = _embedder
     text_field = "id"
     vectorstore = Pinecone(_pinecone_index, embed, text_field, namespace=uid)
     return vectorstore
@@ -92,25 +93,8 @@ def init_langchain(uid, _pinecone_index):
 
 
 @st.cache_resource
-def load_model():
-    return SentenceTransformer("clip-ViT-B-32")
-
-
-@st.cache_resource
 def load_inference():
     return InferenceClient(model="Salesforce/blip-image-captioning-large")
-
-
-@st.cache_resource
-def get_pinecone_image_index():
-    load_dotenv()
-    pinecone.init(
-        api_key=os.getenv("PINECONE_API_KEY"),
-        environment=os.getenv("PINECONE_ENVIRONMENT"),
-    )
-    if im_index_name not in pinecone.list_indexes():
-        pinecone.create_index(name=im_index_name, dimension=512, metric="cosine")
-    return pinecone.Index(im_index_name)
 
 
 if "showing_results" not in st.session_state:
@@ -123,12 +107,12 @@ if "image_results" not in st.session_state:
     st.session_state["image_results"] = []
 
 st.set_page_config(layout="wide")
-clip_model = load_model()
+embedder = load_embedder()
 blip_inference = load_inference()
 # images = st.session_state["images"]
 uid = st.session_state["uid"]
 pinecone_index = get_pinecone_image_index()
-vectorstore: Pinecone = get_vectorstore(uid, pinecone_index)
+vectorstore: Pinecone = get_vectorstore(uid, pinecone_index, embedder)
 llm_agent = init_langchain(uid, pinecone_index)
 id_to_image = st.session_state["image_dict"]
 media_items_df = st.session_state["media_items_df"]
@@ -199,13 +183,14 @@ def learn_from_target_image(image_url_and_id):
     few_shot_example = (
         f"User Queries: {queries_string} \nSynthesized Query: {blip_caption}"
     )
+    print(f"INFO:3_Image_Search.py: learned: {queries_string} : {blip_caption}")
 
-    caption_embedding = clip_model.encode(queries_string)
+    caption_embedding = embedder.embed_query(queries_string)
     pinecone_index.upsert(
         vectors=[
             (
                 id,
-                caption_embedding.tolist(),
+                caption_embedding,
                 {"id": image_url_and_id[1], "learnings": few_shot_example},
             )
         ],
