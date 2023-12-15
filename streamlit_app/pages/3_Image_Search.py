@@ -50,8 +50,21 @@ natural language queries from a user and synthesizing them into a single query \
 for a vectorstore of CLIP embeddings. In this process, you strip out information \
 that is not relevant for the retrieval task and focus on visual elements and \
 descriptors that are key for image retrieval. \
-Here are the user queries: {queries} \
+User Queries: {queries} \
 Synthesized Query:"""
+PROMPT = """
+Prompt: You are an AI assistant tasked with processing a series of natural \
+language image search queries from a user. Your job is to analyze these \
+queries, identify the core visual elements they are seeking, and combine \
+these elements into a single, coherent query. This synthesized query should \
+be optimized for searching against a vectorstore with CLIP embeddings, \
+which means it needs to be clear, focused, and stripped of any irrelevant details. \
+Here are the user's queries: {queries} \
+Your task is to synthesize these queries into one concise and effective \
+query for a vectorstore. Remember to focus on visual elements and \
+descriptors that are key for image retrieval. \
+Synthesized Query:"""
+
 
 @st.cache_resource
 def init_langchain(uid, _pinecone_index):
@@ -63,13 +76,13 @@ def init_langchain(uid, _pinecone_index):
     vectorstore = Pinecone(_pinecone_index, embed, text_field, namespace=uid)
     QUERY_PROMPT = PromptTemplate(
         input_variables=["queries"],
-        template=AGENT_QUERY,
+        template=PROMPT,
     )
-    llm = OpenAI(temperature=0.5)
+    llm = OpenAI(temperature=0.1)
     llm_chain = LLMChain(llm=llm, prompt=QUERY_PROMPT)
 
     retriever_from_llm_chain = RePhraseQueryRetriever(
-        retriever=vectorstore.as_retriever(), llm_chain=llm_chain
+        retriever=vectorstore.as_retriever(search_kwargs={'k': 10}), llm_chain=llm_chain, k=50
     )
     return retriever_from_llm_chain
 
@@ -134,6 +147,7 @@ def click_search_button(query):
     st.session_state.search_journey.append(query)
     st.session_state.image_results = query_images(st.session_state.search_journey)
     st.session_state.showing_results = True
+    st.session_state["text_input_query"] = ""
 
 
 def clear_search_journey():
@@ -148,11 +162,28 @@ def get_image_caption(image_url):
     try:
         return blip_inference.image_to_text(image=image_url)
     except Exception as e:
-        st.error("Google Photos Base URL expired please go to Upsert Images and reupload images.")
+        st.error(
+            "Google Photos Base URL expired please go to Upsert Images and reupload images."
+        )
         st.stop()
 
-def learn_from_target_image(target_image):
-    st.write(get_image_caption(target_image[0]))
+
+def learn_from_target_image(image_url_and_id):
+    id = image_url_and_id[1]
+    image_url = image_url_and_id[0]
+    blip_caption = get_image_caption(image_url)
+    queries_string = ", ".join(st.session_state.search_journey)
+    few_shot_example = (
+        f"User Queries: {queries_string} \nSynthesized Query: {blip_caption}"
+    )
+    print(few_shot_example)
+    caption_embedding = clip_model.encode(few_shot_example)
+    pinecone_index.upsert(
+        vectors=[(image_url_and_id[1], caption_embedding.tolist(), {"id": image_url_and_id[1], "learnings": few_shot_example})],
+        namespace=f"{uid}_fewshot",
+        async_req=True,
+    )
+    clear_search_journey()
 
 
 st.title("Storylines Search")
@@ -182,6 +213,9 @@ if st.session_state.showing_results:
         st.button("Clear Search Journey", on_click=clear_search_journey)
 else:
     st.header("Gallery")
+    st.caption(
+        "If some images aren't showing, please go to Upsert Images and reupload images."
+    )
     num_pages = int(len(media_items_df) / (row_size * (row_size + 1))) + 1
     page_number = st.number_input(
         label="Page Number", min_value=1, max_value=num_pages, value=1, step=1

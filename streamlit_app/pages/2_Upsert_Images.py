@@ -256,3 +256,5 @@ st.write("Please select a date range for the images to include in your search")
 start_date = st.date_input("Start Date")
 end_date = st.date_input("End Date")
 st.button("Confirm", on_click=click_date_range_button, args=[start_date, end_date])
+if "media_items_df" in st.session_state:
+    st.dataframe(st.session_state["media_items_df"])
