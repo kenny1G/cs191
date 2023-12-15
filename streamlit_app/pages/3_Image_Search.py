@@ -6,11 +6,10 @@ from sentence_transformers import SentenceTransformer
 import streamlit as st
 from streamlit_image_select import image_select
 from langchain.llms import OpenAI
-from langchain.chat_models import ChatOpenAI
-from langchain.llms import HuggingFaceHub
+from huggingface_hub import InferenceClient
 from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.retrievers import RePhraseQueryRetriever
-from langchain.vectorstores import Pinecone
+from langchain_community.vectorstores import Pinecone
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 
@@ -46,6 +45,14 @@ month_names = [
 ]
 
 
+AGENT_QUERY = """Prompt: You are an assistant tasked with taking a series of \
+natural language queries from a user and synthesizing them into a single query \
+for a vectorstore of CLIP embeddings. In this process, you strip out information \
+that is not relevant for the retrieval task and focus on visual elements and \
+descriptors that are key for image retrieval. \
+Here are the user queries: {queries} \
+Synthesized Query:"""
+
 @st.cache_resource
 def init_langchain(uid, _pinecone_index):
     logging.basicConfig()
@@ -56,23 +63,9 @@ def init_langchain(uid, _pinecone_index):
     vectorstore = Pinecone(_pinecone_index, embed, text_field, namespace=uid)
     QUERY_PROMPT = PromptTemplate(
         input_variables=["queries"],
-        template="""
-        Prompt: You are an AI assistant tasked with processing a series of natural
-        language image search queries from a user. Your job is to analyze these
-        queries, identify the core visual elements they are seeking, and combine
-        these elements into a single, coherent query. This synthesized query should
-        be optimized for searching against a vectorstore with CLIP embeddings,
-        which means it needs to be clear, focused, and stripped of any irrelevant details.
-
-        Here are the user's queries: {queries}
-
-        Your task is to synthesize these queries into one concise and effective
-        query for a vectorstore. Remember to focus on visual elements and
-        descriptors that are key for image retrieval.
-
-        Synthesized Query:""",
+        template=AGENT_QUERY,
     )
-    llm = ChatOpenAI(temperature=0)
+    llm = OpenAI(temperature=0.5)
     llm_chain = LLMChain(llm=llm, prompt=QUERY_PROMPT)
 
     retriever_from_llm_chain = RePhraseQueryRetriever(
@@ -87,6 +80,11 @@ def load_model():
 
 
 @st.cache_resource
+def load_inference():
+    return InferenceClient(model="Salesforce/blip-image-captioning-large")
+
+
+@st.cache_resource
 def get_pinecone_image_index():
     load_dotenv()
     pinecone.init(
@@ -96,7 +94,6 @@ def get_pinecone_image_index():
     if im_index_name not in pinecone.list_indexes():
         pinecone.create_index(name=im_index_name, dimension=512, metric="cosine")
     return pinecone.Index(im_index_name)
-
 
 
 if "showing_results" not in st.session_state:
@@ -110,6 +107,7 @@ if "image_results" not in st.session_state:
 
 st.set_page_config(layout="wide")
 clip_model = load_model()
+blip_inference = load_inference()
 # images = st.session_state["images"]
 uid = st.session_state["uid"]
 pinecone_index = get_pinecone_image_index()
@@ -120,90 +118,81 @@ row_size = 5
 top_k = 50
 
 
-def click_search_button(query):
-    st.session_state.search_journey.append(query)
-    st.session_state.image_results = query_images(query)
-    st.session_state.showing_results = True
-
-
-def query_images(query):
-    # create the query vector
-    xq = clip_model.encode(query).tolist()
-
-    # now query
-    xc = pinecone_index.query(
-        xq,
-        namespace=uid,
-        top_k=top_k,
-        include_metadata=True,
-    )
-
-    docs = llm_agent.get_relevant_documents("\n\n".join(st.session_state.search_journey))
-    print(docs)
+@st.cache_data
+def query_images(search_journey):
+    docs = llm_agent.get_relevant_documents("\n\n".join(search_journey), k=top_k)
     results = []
-    # for doc in docs:
-    #     results.append((doc["metadata"]["baseUrl"], doc["metadata"]["captions"]))
+    for doc in docs:
+        id = doc.page_content
+        image_url = media_items_df.loc[media_items_df["id"] == id, "baseUrl"].iloc[0]
+        results.append((image_url, id))
 
-    # print(media_items_df.head())
-    i = 0
-    while i < top_k and i < len(xc["matches"]):
-        img_id = xc["matches"][i]["id"]
-        # print("got id", img_id)
-        if img_id in media_items_df["id"].values:
-            image_url = media_items_df.loc[
-                media_items_df["id"] == img_id, "baseUrl"
-            ].iloc[0]
-            # print("got url", img_url)
-
-            img_year = media_items_df.loc[
-                media_items_df["id"] == img_id, "metadata"
-            ].iloc[0]["year"]
-            # print("got year", img_year)
-            img_month = media_items_df.loc[
-                media_items_df["id"] == img_id, "metadata"
-            ].iloc[0]["month"]
-            # print("got month", img_month)
-            img_text = month_names[img_month] + " of " + str(img_year)
-
-            results.append((image_url, img_text))
-            i += 1
-    # print (results)
     return results
 
 
-col1, col2 = st.columns(2)
-with col1:
-    st.header("Search")
-    query = st.text_input("Search till you find it!", key="text_input_query")
-    st.button("Search", on_click=click_search_button, args=[query])
-    if st.session_state.image_results != []:
+def click_search_button(query):
+    st.session_state.search_journey.append(query)
+    st.session_state.image_results = query_images(st.session_state.search_journey)
+    st.session_state.showing_results = True
+
+
+def clear_search_journey():
+    st.session_state.image_results = []
+    st.session_state.search_journey = []
+    st.session_state["text_input_query"] = ""
+    st.session_state["showing_results"] = False
+
+
+@st.cache_data
+def get_image_caption(image_url):
+    try:
+        return blip_inference.image_to_text(image=image_url)
+    except Exception as e:
+        st.error("Google Photos Base URL expired please go to Upsert Images and reupload images.")
+        st.stop()
+
+def learn_from_target_image(target_image):
+    st.write(get_image_caption(target_image[0]))
+
+
+st.title("Storylines Search")
+query = st.text_input("Search till you find it!", key="text_input_query")
+st.button("Search", on_click=click_search_button, args=[query])
+
+if st.session_state.showing_results:
+    col1, col2, col3 = st.columns([1, 3, 1])
+    with col2:
+        st.header("Most Relevant To Your Search")
         image_results = st.session_state.image_results
-        cols = st.columns(len(image_results))
         images = [x[0] for x in image_results]
-        img = image_select(
-            label="Select the image", images=images, return_value="index"
+        selection_id = image_select(
+            label="Select your target image",
+            images=images,
+            return_value="index",
         )
-        # TODO: LEARN!
-        if img != 0:
-            print(img)
-with col2:
+        selection = image_results[selection_id]
+    with col1:
+        st.header("Current Target Image")
+        st.image(selection[0])
+        st.button("Accept", on_click=learn_from_target_image, args=[selection])
+    with col3:
+        st.header("Search Journey")
+        search_journey_str = " <li>".join(st.session_state.search_journey)
+        st.write(f"<ol><li>{search_journey_str}</ol>", unsafe_allow_html=True)
+        st.button("Clear Search Journey", on_click=clear_search_journey)
+else:
     st.header("Gallery")
+    num_pages = int(len(media_items_df) / (row_size * (row_size + 1))) + 1
+    page_number = st.number_input(
+        label="Page Number", min_value=1, max_value=num_pages, value=1, step=1
+    )
     grid = st.columns(row_size)
     col = 0
-    for i, image in enumerate(media_items_df["baseUrl"].values):
+    batch_size = row_size * row_size
+    start = (page_number - 1) * batch_size
+    end = start + batch_size
+    batch = media_items_df["baseUrl"].values[start:end]
+    for i, image in enumerate(batch):
         with grid[col]:
             st.image(image)
-            # st.write(media_items_df["captions"].iloc[i])
         col = (col + 1) % row_size
-
-
-with st.sidebar:
-    if st.session_state.search_journey != []:
-        st.header("Search Journey So Far")
-        for user_query in st.session_state.search_journey:
-            st.write(user_query)
-        if st.button("Clear Search Journey"):
-            st.session_state.image_results = []
-            st.session_state.search_journey = []
-            st.session_state["showing_results"] = False
-            st.rerun()
