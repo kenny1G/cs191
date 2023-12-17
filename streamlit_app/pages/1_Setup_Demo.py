@@ -37,7 +37,7 @@ flow = load_flow()
 load_dotenv()
 is_prod = os.getenv("IS_PROD", False)
 
-@st.cache_data
+@st.cache_data(ttl=3600)
 def get_credentials(uid):
     print(f"Getting credentials for {uid}")
     code = st.experimental_get_query_params()["code"][0]
@@ -55,6 +55,11 @@ def click_login_button(uid):
         # Reached when user logs in and we already have a token so dont need
         # to go through google
         credentials = get_credentials(uid)
+        if not credentials.valid:
+            if credentials.expired and credentials.refresh_token:
+                credentials.refresh(Request())
+            else:
+                raise KeyError
         st.session_state["credentials"] = credentials
         st.session_state["uid"] = uid
         st.header("You are successfully authenticated against the Google Photos API!")
