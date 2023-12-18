@@ -126,10 +126,10 @@ def query_images(search_journey):
             fewshots_query += f"{doc.metadata['learnings']}\n"
     fewshots_query += f"User Queries: {', '.join(search_journey)}\n"
 
-    if len(search_journey) > 1:
-        docs = llm_agent.get_relevant_documents(fewshots_query)
-    else:
-        docs = vectorstore.similarity_search(query=queries_string, k=top_k)
+    # if len(search_journey) > 1:
+    docs = llm_agent.get_relevant_documents(fewshots_query)
+    # else:
+    #     docs = vectorstore.similarity_search(query=queries_string, k=top_k)
     results = []
     for doc in docs:
         id = doc.page_content
