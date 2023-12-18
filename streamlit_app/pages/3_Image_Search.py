@@ -164,6 +164,7 @@ def get_image_caption(image_url):
         st.error(
             "Google Photos Base URL expired please go to Upsert Images and reupload images."
         )
+        print(f"Error getting image caption: {e}")
         st.stop()
 
 

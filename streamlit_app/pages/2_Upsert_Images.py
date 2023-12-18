@@ -166,14 +166,6 @@ def upsert_to_pinecone(namespace, media_items_df, is_caption=False):
 
 
 def click_date_range_button(start_date, end_date):
-    # Check if the date range is longer than 3 months
-    if (end_date - start_date).days > 93:
-        st.warning(
-            "The date range is longer than 3 months. Please select a shorter range.",
-            icon="⚠️",
-        )
-        return
-
     media_items_df = None
 
     with st.spinner("Fetching Images"):

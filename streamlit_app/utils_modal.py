@@ -17,6 +17,7 @@ container_image = (
 
 @stub.cls(
     image=container_image,
+    timeout=600
 )
 class ModalEmbedding:
     def __enter__(self):
